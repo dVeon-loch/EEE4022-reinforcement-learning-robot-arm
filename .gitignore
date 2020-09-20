@@ -1,5 +1,5 @@
 build/
 devel/
+.vscode/
 .catkin_workspace
-settings.json
 RL_Arm.code-workspace
