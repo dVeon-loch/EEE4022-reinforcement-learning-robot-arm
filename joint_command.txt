@@ -6,6 +6,22 @@ rostopic pub -l /arm_controller/command trajectory_msgs/JointTrajectory "header:
   frame_id: ''
 joint_names: [plat_joint, 'shoulder_joint', 'forearm_joint', 'wrist_joint']
 points:
+- positions: [1,2,3,4]
+  velocities: []
+  accelerations: []
+  effort: []
+  time_from_start: {secs: 2, nsecs: 0}" --once
+
+
+
+rostopic pub -l /arm_controller/command trajectory_msgs/JointTrajectory "header:
+  seq: 0
+  stamp:
+    secs: 0
+    nsecs: 0
+  frame_id: ''
+joint_names: [plat_joint, 'shoulder_joint', 'forearm_joint', 'wrist_joint']
+points:
 - positions: [0,0,0,0]
   velocities: []
   accelerations: []
