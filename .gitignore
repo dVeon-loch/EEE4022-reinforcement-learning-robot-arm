@@ -3,3 +3,4 @@ devel/
 .vscode/
 .catkin_workspace
 RL_Arm.code-workspace
+*.pyc
