@@ -2,13 +2,16 @@ import rospy
 from control_msgs.msg import JointTrajectoryControllerState
 
 def callback(data):
-    rospy.loginfo("The current state is: %s",data.actual.positions)
+    rospy.loginfo("The current state is: %s", data.actual.positions)
 
 def listener():
-    rospy.init_node("Mossie_is_Gay")
     state_sub = rospy.Subscriber('/arm_controller/state', JointTrajectoryControllerState, callback)
     rospy.sleep(2)
     rospy.spin()
 
-if __name__ == "__main__":
-    listener()
+def getLatestState():
+    latest_state = rospy.wait_for_message('/arm_controller/state', JointTrajectoryControllerState)
+    return latest_state.actual.positions
+
+""" if __name__ == "__main__":
+    listener() """

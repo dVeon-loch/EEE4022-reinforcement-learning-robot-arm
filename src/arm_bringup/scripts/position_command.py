@@ -2,7 +2,6 @@ import rospy
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 def pos_commander(poslist):
-    rospy.init_node('joint_control')
     pub = rospy.Publisher('/arm_controller/command', JointTrajectory, queue_size=10)
 
     rate = rospy.Rate(10)  # 10hz
@@ -18,7 +17,6 @@ def pos_commander(poslist):
     pos_cmd.points.append(pt)
     rospy.sleep(1)  # Needed so that the subscriber has enough time to subscribe to the publisher before publishing
     pub.publish(pos_cmd)
-    rospy.spin()
 
 """ if __name__ == "__main__":
     poslist = list(input("Enter Position \n"))
