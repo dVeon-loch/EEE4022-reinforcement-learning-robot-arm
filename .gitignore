@@ -4,3 +4,4 @@ devel/
 .catkin_workspace
 RL_Arm.code-workspace
 *.pyc
+*.notes
