@@ -1,5 +1,4 @@
-import rospy
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+
 
 def pos_commander(poslist):
     pub = rospy.Publisher('/arm_controller/command', JointTrajectory, queue_size=10)
