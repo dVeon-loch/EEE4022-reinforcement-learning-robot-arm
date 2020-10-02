@@ -8,6 +8,7 @@ from gazebo_msgs.srv import SetModelState, SetModelStateRequest, SetModelConfigu
 from gazebo_msgs.srv import GetModelState, GetModelStateRequest
 from gazebo_msgs.msg import ModelState
 import numpy as np
+import time
 
 class AllJoints:
     def __init__(self,joint_names):
@@ -64,6 +65,7 @@ class AllJoints:
 
 class ArmEnvironment:
     def __init__(self):
+        self.zero = np.array([0,0,0,0])
         rospy.init_node('joint_position_node')
         self.num_joints = 4
         self.state_shape = self.num_joints
@@ -74,6 +76,12 @@ class ArmEnvironment:
 
         self.pause_proxy = rospy.ServiceProxy('/gazebo/pause_physics',Empty)
         self.unpause_proxy = rospy.ServiceProxy('/gazebo/unpause_physics',Empty)
+        self.model_config_proxy = rospy.ServiceProxy('/gazebo/set_model_configuration',SetModelConfiguration)
+        self.model_config_req = SetModelConfigurationRequest()
+        self.model_config_req.model_name = 'arm'
+        self.model_config_req.urdf_param_name = 'robot_description'
+        self.model_config_req.joint_names = self.joint_names
+        self.model_config_req.joint_positions = self.zero
 
         self.joint_pos_high = np.array([1.5, 1.5, 1.5, 2.5])
         self.joint_pos_low = np.array([-1.5, -1.5, -1.5, -2.5])
@@ -90,6 +98,7 @@ class ArmEnvironment:
         self.done = False
         self.episode_start_time = 0.0
         self.max_sim_time = 15.0
+
     
     def normalize_joint_state(self, joint_pos):
         # TODO implement normalization
@@ -98,38 +107,64 @@ class ArmEnvironment:
     def joint_state_subscriber_callback(self, joint_state):
         self.joint_state = np.array(joint_state.position)
 
-    def reset(self):
-        zero = np.array([0,0,0,0])
-        self.joint_pos = self.starting_pos
-        self.all_joints.move(zero)
-        #unpause physics
-        #pause physics
-        """ rospy.wait_for_service('/gazebo/pause_physics')
+    def pause_physics(self):
+        rospy.wait_for_service('/gazebo/pause_physics')
         try:
             self.pause_proxy()
+            return True
         except rospy.ServiceException, e:
             print('/gazebo/pause_physics service call failed')
-        #set models pos from world
-        rospy.wait_for_service('/gazebo/set_model_state')
+            return False
+    def unpause_physics(self):
+        print("in unpause physics")
+        rospy.wait_for_service('/gazebo/unpause_physics')
+        print("done waiting for service")
         try:
-            self.model_state_proxy(self.model_state_req)
+            self.unpause_proxy()
+            print("physics unpaused")
+            return True
+
         except rospy.ServiceException, e:
-            print('/gazebo/set_model_state call failed')
-        #set model's joint config
+            print('/gazebo/unpause_physics service call failed')
+            return False
+    def reset_position(self):
         rospy.wait_for_service('/gazebo/set_model_configuration')
         try:
             self.model_config_proxy(self.model_config_req)
+            self.model_config_proxy(self.model_config_req)
+            self.model_config_proxy(self.model_config_req)
+            self.model_config_proxy(self.model_config_req)
+            for i in range(1,100): pass
+            return True
+
+                # self.unpause_physics()
+                # comparison = self.joint_state == self.zero
+                # #self.pause_physics()
+                # print(str(self.joint_state)+" "+str(self.zero))
+                # print(comparison.all())
+                # if(comparison.all()):
+                #     return(True)
+                #     break
+            #time.sleep(1)
         except rospy.ServiceException, e:
             print('/gazebo/set_model_configuration call failed')
-
+            return(False)
+    def reset(self):
+        """ nonzero = np.array([0,0,0,1])
+        self.joint_pos = self.starting_pos
+        self.all_joints.move(nonzero)
+        rospy.sleep(1)
+        self.all_joints.move(zero)  """
+        print("in reset")
+        if(self.pause_physics()):            
+            #set model's joint config
+            self.reset_position()
+        else:
+            print("Physics pause failure")
+        print("REEE")
         
-        rospy.wait_for_service('/gazebo/unpause_physics')
-        try:
-            self.unpause_proxy()
-        except rospy.ServiceException, e:
-            print('/gazebo/unpause_physics service call failed')
- """
-        rospy.sleep(0.5)
+        #self.unpause_physics()
+        rospy.sleep(1)
         self.reward = 0.0
         self.state = np.zeros(self.state_shape)
        # rospy.wait_for_service('/gazebo/get_model_state')

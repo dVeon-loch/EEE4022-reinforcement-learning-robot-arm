@@ -10,23 +10,27 @@ from gazebo_msgs.srv import SetModelState, SetModelStateRequest, SetModelConfigu
 from gazebo_msgs.srv import GetModelState, GetModelStateRequest
 from gazebo_msgs.msg import ModelState
 import numpy as np
+envboi = ArmEnvironment()
 
 zero = np.array([0,0,0,0])
 
-testpos = np.array([0,0,0,1])
+testpos = np.array([0,0,1,1])
 
 
-""" rospy.init_node('testing_node')
+#rospy.init_node('testing_node')
 
 jointboi = AllJoints(['plat_joint','shoulder_joint','forearm_joint','wrist_joint'])
 
-jointboi.move(testpos) """
+jointboi.move(testpos)
+
+rospy.sleep(1)
 
 # TODO fix reset function
 
-envboi = ArmEnvironment()
-
-envboi.reset()
+rospy.sleep(1)
+print(envboi.reset())
+rospy.sleep(2)
+#rospy.spin()
 
 
 #position_command.pos_commander(testpos)
