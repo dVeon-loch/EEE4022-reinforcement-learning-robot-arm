@@ -14,7 +14,7 @@ envboi = ArmEnvironment()
 
 zero = np.array([0,0,0,0])
 
-testpos = np.array([0,0,1,1])
+testpos = np.array([0,0,0,1])
 
 
 #rospy.init_node('testing_node')
