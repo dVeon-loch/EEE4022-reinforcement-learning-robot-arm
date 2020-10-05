@@ -170,7 +170,13 @@ class ArmEnvironment:
         except rospy.ServiceException, e:
             print('/gazebo/set_model_configuration call failed')
             return(False)
-            
+    
+    def get_state(self):
+        # TODO work out forward kinematics, work out total range of arm, implement simple goal so that the distance from goal can be included in state
+        current_state = rospy.wait_for_message('arm/arm_controller/state', JointTrajectoryControllerState)
+        joint_angles = current_state.actual.positions
+
+
     def reset(self):
 
         rospy.wait_for_service('/gazebo/delete_model')
