@@ -11,12 +11,17 @@ from gazebo_msgs.srv import GetModelState, GetModelStateRequest
 from controller_manager_msgs.srv import SwitchController, SwitchControllerRequest, LoadController, LoadControllerRequest
 from gazebo_msgs.msg import ModelState
 from gazebo_msgs.srv import SpawnModel, DeleteModel, SpawnModelRequest
+import tf
+from scipy.spatial import distance
 
 import numpy as np
 import time
 
 goal_model_dir = os.path.join(os.path.split(os.path.realpath(__file__))[0], '..', '..', 'arm_description',
                               'urdf', 'arm_gazebo.urdf')
+
+sphere_dir = os.path.join(os.path.split(os.path.realpath(__file__))[0], '..', '..', 'arm_description',
+                              'urdf', 'ball.urdf')
 
 
 class AllJoints:
@@ -82,6 +87,7 @@ class ArmEnvironment:
         self.joint_names = ['plat_joint','shoulder_joint','forearm_joint','wrist_joint']
         self.all_joints = AllJoints(self.joint_names)
         self.starting_pos = np.array([0, 0, 0, 0])
+        self.goal_pos = np.random.uniform(low = 0.0, high = 0.4, size = 3)
 
         self.pause_proxy = rospy.ServiceProxy('/gazebo/pause_physics',Empty)
         self.unpause_proxy = rospy.ServiceProxy('/gazebo/unpause_physics',Empty)
@@ -116,6 +122,26 @@ class ArmEnvironment:
         self.initial_pose.position.z = 0.0305
         self.model.initial_pose = self.initial_pose 
         self.model.reference_frame = 'world'
+
+        self.sphere_urdf = open(sphere_dir, "r").read()
+        self.sphere = SpawnModelRequest()
+        self.sphere.model_name = 'simple_ball'  # the same with sdf name
+        self.sphere.model_xml = self.sphere_urdf
+        self.sphere.robot_namespace = 'arm'
+        self.sphere_initial_pose = Pose()
+        self.sphere_initial_pose.position.z = 1
+        self.sphere.initial_pose = self.sphere_initial_pose 
+        self.sphere.reference_frame = 'world'
+        rospy.wait_for_service('/gazebo/spawn_urdf_model')
+        try:
+            self.spawn_model(self.sphere.model_name, self.sphere.model_xml, self.sphere.robot_namespace, self.sphere.initial_pose, 'world')
+            #self.spawn_model(self.sp)
+        except (rospy.ServiceException) as e:
+            print("/gazebo/failed to build the target")
+        self.unpause_physics()
+
+        self.tf_listener = tf.TransformListener()
+        
 
 
         self.joint_pos_high = np.array([1.5, 1.5, 1.5, 2.5])
@@ -170,17 +196,50 @@ class ArmEnvironment:
         except rospy.ServiceException, e:
             print('/gazebo/set_model_configuration call failed')
             return(False)
-    
+    def get_goal_distance(self):
+        try:
+            (trans,rot) = self.tf_listener.lookupTransform('/base_link', '/wrist_link', rospy.Time(0))
+            goal_distance = distance.euclidean(trans,self.goal_pos)
+            print("Goal is at: {} \n".format(np.array2string(self.goal_pos)))
+            return goal_distance
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            print("tf lookupTransform error")
+        
+        
     def get_state(self):
         # TODO work out forward kinematics, work out total range of arm, implement simple goal so that the distance from goal can be included in state
         current_state = rospy.wait_for_message('arm/arm_controller/state', JointTrajectoryControllerState)
         joint_angles = current_state.actual.positions
+        goal_distance = get_goal_distance()
+
+    def set_new_goal(self):
+        self.goal_pos = np.random.uniform(low = 0.0, high = 0.4, size = 3)
+
+        self.sphere_urdf = open(sphere_dir, "r").read()
+        self.sphere = SpawnModelRequest()
+        self.sphere.model_name = 'simple_ball'  # the same with sdf name
+        self.sphere.model_xml = self.sphere_urdf
+        self.sphere.robot_namespace = 'arm'
+        self.sphere_initial_pose = Pose()
+        self.sphere_initial_pose.position.x = self.goal_pos[0]
+        self.sphere_initial_pose.position.y = self.goal_pos[1]
+        self.sphere_initial_pose.position.z = self.goal_pos[2]
+        self.sphere.initial_pose = self.sphere_initial_pose 
+        self.sphere.reference_frame = 'world'
+        rospy.wait_for_service('/gazebo/spawn_urdf_model')
+        try:
+            self.spawn_model(self.sphere.model_name, self.sphere.model_xml, self.sphere.robot_namespace, self.sphere.initial_pose, 'world')
+            #self.spawn_model(self.sp)
+        except (rospy.ServiceException) as e:
+            print("/gazebo/failed to build the target")
+        self.unpause_physics()
 
 
     def reset(self):
 
         rospy.wait_for_service('/gazebo/delete_model')
         self.del_model('arm')
+        self.del_model('simple_ball')
 
         rospy.wait_for_service('gazebo/reset_simulation')
         try:
@@ -213,6 +272,7 @@ class ArmEnvironment:
         except (rospy.ServiceException) as e:
             print('arm/controller_manager/switch_controller service call failed')
 
+        self.set_new_goal()
         
         # nonzero = np.array([0,0,0,1])
         # self.joint_pos = self.starting_pos
