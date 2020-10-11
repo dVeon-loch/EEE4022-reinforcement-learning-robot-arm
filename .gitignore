@@ -7,3 +7,5 @@ RL_Arm.code-workspace
 *.notes
 Weekly Meeting Notes/
 *.gv
+model/
+*.p
