@@ -11,7 +11,9 @@ from gazebo_msgs.srv import GetModelState, GetModelStateRequest
 from controller_manager_msgs.srv import SwitchController, SwitchControllerRequest, LoadController, LoadControllerRequest
 from gazebo_msgs.msg import ModelState
 from gazebo_msgs.srv import SpawnModel, DeleteModel, SpawnModelRequest
+from rosgraph_msgs.msg import Clock
 import tf
+import tf2_ros
 from scipy.spatial import distance
 
 import numpy as np
@@ -87,18 +89,16 @@ class ArmEnvironment:
         self.joint_names = ['plat_joint','shoulder_joint','forearm_joint','wrist_joint']
         self.all_joints = AllJoints(self.joint_names)
         self.starting_pos = np.array([0, 0, 0, 0])
-        self.goal_pos = np.random.uniform(low = 0.0, high = 0.4, size = 3)
-
+        while(True):
+            x_y = np.random.uniform(low = -0.4, high = 0.4, size = 2)
+            z = np.random.uniform(low = 0, high = 0.4, size = 1)
+            self.goal_pos = np.concatenate([x_y,z],axis=0)
+            if(np.linalg.norm(self.goal_pos)<0.4):
+                break
         self.pause_proxy = rospy.ServiceProxy('/gazebo/pause_physics',Empty)
         self.unpause_proxy = rospy.ServiceProxy('/gazebo/unpause_physics',Empty)
-        # self.model_config_proxy = rospy.ServiceProxy('/gazebo/set_model_configuration',SetModelConfiguration)
         self.reset_proxy = rospy.ServiceProxy('gazebo/reset_simulation', Empty)
-        # self.model_config_req = SetModelConfigurationRequest()
-        # self.model_config_req.model_name = 'arm'
-        # self.model_config_req.urdf_param_name = 'robot_description'
-        # self.model_config_req.joint_names = self.joint_names
-        # self.model_config_req.joint_positions = self.zero
-        
+   
         self.load_controller_proxy = rospy.ServiceProxy('/arm/controller_manager/load_controller', LoadController)
         self.joint_state_controller_load = LoadControllerRequest()
         self.joint_state_controller_load.name = 'joint_state_controller'
@@ -112,7 +112,7 @@ class ArmEnvironment:
         self.switch_controller.strictness = 2
 
         self.del_model = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
-        self.spawn_model = rospy.ServiceProxy('/gazebo/spawn_urdf_model', SpawnModel)
+        self.spawn_model_proxy = rospy.ServiceProxy('/gazebo/spawn_urdf_model', SpawnModel)
         self.goal_urdf = open(goal_model_dir, "r").read()
         self.model = SpawnModelRequest()
         self.model.model_name = 'arm'  # the same with sdf name
@@ -134,37 +134,52 @@ class ArmEnvironment:
         self.sphere.reference_frame = 'world'
         rospy.wait_for_service('/gazebo/spawn_urdf_model')
         try:
-            self.spawn_model(self.sphere.model_name, self.sphere.model_xml, self.sphere.robot_namespace, self.sphere.initial_pose, 'world')
-            #self.spawn_model(self.sp)
+            self.spawn_model_proxy(self.sphere.model_name, self.sphere.model_xml, self.sphere.robot_namespace, self.sphere.initial_pose, 'world')
         except (rospy.ServiceException) as e:
             print("/gazebo/failed to build the target")
         self.unpause_physics()
 
-        self.tf_listener = tf.TransformListener()
+        #self.tf_listener = tf.TransformListener()
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         
-
-
+        
         self.joint_pos_high = np.array([1.5, 1.5, 1.5, 2.5])
         self.joint_pos_low = np.array([-1.5, -1.5, -1.5, -2.5])
         self.joint_pos_range = self.joint_pos_high-self.joint_pos_low
         self.joint_pos_mid = self.joint_pos_range/2.0
-        self.joint_pos = self.joint_pos_mid
+        self.joint_pos = np.zeros(4)
         self.joint_state = np.zeros(self.num_joints)
         self.joint_state_subscriber = rospy.Subscriber('/joint_states', JointState, self.joint_state_subscriber_callback)
         self.normed_sp = self.normalize_joint_state(self.starting_pos)
         self.state = np.zeros(self.state_shape)
         self.diff_state_coeff = 4.0 # TODO find out what this is
         self.reward_coeff = 20.0 # TODO find out what this is
+        self.action_coeff = 0.5
         self.reward = 0.0
         self.done = False
         self.episode_start_time = 0.0
-        self.max_sim_time = 15.0
+        self.max_sim_time = 3000
+        self.goal_radius = 0.07 #should equal sphere radius in ball.urdf
 
-    
     def normalize_joint_state(self, joint_pos):
         # TODO implement normalization
         return joint_pos
-    
+
+    def get_state(self):
+        joint_angles = rospy.wait_for_message('arm/arm_controller/state', JointTrajectoryControllerState)
+        current_sim_time = rospy.wait_for_message('/clock', Clock)
+        if(self.get_goal_distance()<=self.goal_radius):
+            arrived = True
+        else: 
+            arrived=False
+        if(current_sim_time.clock.secs>=self.max_sim_time):
+            time_runout = True
+            print("ran out of time")
+        else:
+            time_runout=False
+        return joint_angles.actual.positions, time_runout, arrived
+
     def joint_state_subscriber_callback(self, joint_state):
         self.joint_state = np.array(joint_state.position)
 
@@ -176,45 +191,34 @@ class ArmEnvironment:
         except rospy.ServiceException, e:
             print('/gazebo/pause_physics service call failed')
             return False
+
     def unpause_physics(self):
-        print("in unpause physics")
         rospy.wait_for_service('/gazebo/unpause_physics')
-        print("done waiting for service")
         try:
             self.unpause_proxy()
-            print("physics unpaused")
-            return True
-
         except rospy.ServiceException, e:
             print('/gazebo/unpause_physics service call failed')
-            return False
-    def reset_position(self):
-        rospy.wait_for_service('/gazebo/set_model_configuration')
-        try:
-            self.model_config_proxy(self.model_config_req)
-            return True
-        except rospy.ServiceException, e:
-            print('/gazebo/set_model_configuration call failed')
-            return(False)
+
     def get_goal_distance(self):
         try:
-            (trans,rot) = self.tf_listener.lookupTransform('/base_link', '/wrist_link', rospy.Time(0))
+            trans = self.tf_buffer.lookup_transform('world', 'dummy_eef', rospy.Time())
+            x = trans.transform.translation.x
+            y = trans.transform.translation.y
+            z = trans.transform.translation.z
+            trans = np.array([x,y,z])
             goal_distance = distance.euclidean(trans,self.goal_pos)
             print("Goal is at: {} \n".format(np.array2string(self.goal_pos)))
             return goal_distance
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
             print("tf lookupTransform error")
-        
-        
-    def get_state(self):
-        # TODO work out forward kinematics, work out total range of arm, implement simple goal so that the distance from goal can be included in state
-        current_state = rospy.wait_for_message('arm/arm_controller/state', JointTrajectoryControllerState)
-        joint_angles = current_state.actual.positions
-        goal_distance = get_goal_distance()
 
     def set_new_goal(self):
-        self.goal_pos = np.random.uniform(low = 0.0, high = 0.4, size = 3)
-
+        while(True):
+            x_y = np.random.uniform(low = -0.4, high = 0.4, size = 2)
+            z = np.random.uniform(low = 0, high = 0.4, size = 1)
+            self.goal_pos = np.concatenate([x_y,z],axis=0)
+            if(np.linalg.norm(self.goal_pos)<0.4):
+                break
         self.sphere_urdf = open(sphere_dir, "r").read()
         self.sphere = SpawnModelRequest()
         self.sphere.model_name = 'simple_ball'  # the same with sdf name
@@ -226,14 +230,23 @@ class ArmEnvironment:
         self.sphere_initial_pose.position.z = self.goal_pos[2]
         self.sphere.initial_pose = self.sphere_initial_pose 
         self.sphere.reference_frame = 'world'
+        self.spawn_model(self.sphere)
+
+    def spawn_model(self, model):
         rospy.wait_for_service('/gazebo/spawn_urdf_model')
         try:
-            self.spawn_model(self.sphere.model_name, self.sphere.model_xml, self.sphere.robot_namespace, self.sphere.initial_pose, 'world')
-            #self.spawn_model(self.sp)
+            self.spawn_model_proxy(model.model_name, model.model_xml, model.robot_namespace, model.initial_pose, 'world')
         except (rospy.ServiceException) as e:
             print("/gazebo/failed to build the target")
         self.unpause_physics()
 
+    def get_reward(self, time_runout, arrive):
+        reward = -1.0*self.get_goal_distance()
+        if(time_runout):
+            reward = -100.0
+        if(arrive):
+            reward = 100.0
+        return reward
 
     def reset(self):
 
@@ -247,12 +260,7 @@ class ArmEnvironment:
         except (rospy.ServiceException) as e:
             print("gazebo/reset_simulation service call failed")
 
-        rospy.wait_for_service('/gazebo/spawn_urdf_model')
-        try:
-            self.spawn_model(self.model.model_name, self.model.model_xml, self.model.robot_namespace, self.model.initial_pose, 'world')
-            #self.spawn_model(self.sp)
-        except (rospy.ServiceException) as e:
-            print("/gazebo/failed to build the target")
+        self.spawn_model(self.model)
         
         rospy.wait_for_service('arm/controller_manager/load_controller')
         try:
@@ -274,26 +282,10 @@ class ArmEnvironment:
 
         self.set_new_goal()
         
-        # nonzero = np.array([0,0,0,1])
-        # self.joint_pos = self.starting_pos
-        # self.all_joints.move(nonzero)
-        # rospy.sleep(1)
-        # self.all_joints.move(zero) 
-        # print("in reset")
-        # if(self.pause_physics()):            
-        #     #set model's joint config
-        #     self.reset_position()
-        # else:
-        #     print("Physics pause failure")
-        # print("REEE")
-        
-        #self.unpause_physics()
         rospy.sleep(1)
-       # rospy.wait_for_service('/gazebo/get_model_state')
-       # model_state = self.get_model_state_proxy(self.get_model_state_req)
-        #pos = np.array([model_state.pose.position.x, model_state.pose.position.y, model_state.pose.position.z])
+    
         done = False
-        self.reward = 0.0
+        self.reward = self.get_reward(False,False)
         self.state = np.zeros(self.state_shape)
         self.last_joint = self.joint_state
         #self.last_pos = pos
@@ -303,3 +295,18 @@ class ArmEnvironment:
         self.episode_start_time = rospy.get_time()
         self.last_action = np.zeros(self.num_joints)
         return self.state, done
+    
+    def step(self, action):
+        action = action * self.action_coeff
+        self.joint_pos = np.clip(self.joint_pos + action,a_min=self.joint_pos_low,a_max=self.joint_pos_high)
+        self.all_joints.move(self.joint_pos)
+        rospy.sleep(1)
+        (state, time_runout, arrived) = self.get_state()
+        reward = self.get_reward(time_runout, arrived)
+        if(time_runout or arrived):
+            done = True
+        else:
+            done = False
+
+        return state, reward, done
+

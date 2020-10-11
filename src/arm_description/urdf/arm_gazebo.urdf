@@ -264,9 +264,11 @@
     </visual>
   </link>
   <!-- Dummy End Effector -->
-  <link name="dummy_eef"/>
+  <link name="dummy_eef">
+  </link>
   <!-- Dummy End Effector -->
   <joint name="eef_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0.120"/>
     <parent link="wrist_link"/>
     <child link="dummy_eef"/>
   </joint>
