@@ -284,7 +284,7 @@ class DDPG:
         pickle.dump(self.memory,mem_file)
         mem_file.close()
 
-    def load_memory(self,path):
+    def load_memory(self):
         mem_file = open(self.current_path + '/agent_mem.p','r')
         mem = pickle.load(mem_file)
         self.memory = mem

@@ -87,8 +87,8 @@ class AllJoints:
 class ArmEnvironment:
     def __init__(self):
         self.max_sim_time = 45
-        self.goal_radius = 0.05 #should equal sphere radius in ball.urdf
-        self.distance_reward_coeff = 300
+        self.goal_radius = 0.06 #should equal sphere radius in ball.urdf
+        self.distance_reward_coeff = 150
         self.min_movement_threshold = 0.005
 
         self.zero = np.array([0,0,0,0])
@@ -231,7 +231,7 @@ class ArmEnvironment:
         while(True):
             x_y = np.random.uniform(low = -0.4, high = 0.4, size = 2)
             z = np.random.uniform(low = 0, high = 0.4, size = 1)
-            self.goal_pos = np.array([-0.13242582 , 0.29086919 , 0.20275278])#np.concatenate([x_y,z],axis=0)
+            self.goal_pos = np.concatenate([x_y,z],axis=0) #np.array([-0.13242582 , 0.29086919 , 0.20275278])
             if(np.linalg.norm(self.goal_pos)<0.5):
                 break
         rospy.loginfo("Goal position defined")
@@ -258,17 +258,22 @@ class ArmEnvironment:
         self.unpause_physics()
 
     def get_reward(self, time_runout, arrive):
-        #reward = -1*self.distance_reward_coeff*self.get_goal_distance()
-        reward = -10+self.distance_reward_coeff*(self.last_goal_distance-self.get_goal_distance())-5*self.get_goal_distance()
+        reward = -1*self.distance_reward_coeff*self.get_goal_distance()
+        if((self.last_goal_distance-self.get_goal_distance())>0):
+            reward = -10+self.distance_reward_coeff*(self.last_goal_distance-self.get_goal_distance())-10*self.get_goal_distance()
+        if((self.last_goal_distance-self.get_goal_distance())<0):
+            reward = -10+300*(self.last_goal_distance-self.get_goal_distance())-10*self.get_goal_distance()
+
         if(time_runout):
             reward = -100.0
         if(arrive):
-            reward = 500.0
+            reward = 1000.0
         # if((self.last_goal_distance-self.get_goal_distance())<0):
         #     reward += 10
         #     print("moving towards target")
-
+       
         self.last_goal_distance = self.get_goal_distance()
+        
         return reward
 
     def reset(self):

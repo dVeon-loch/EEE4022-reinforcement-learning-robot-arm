@@ -10,6 +10,8 @@ action_shape = env.action_shape
 agent = DDPG(state_shape,action_shape,batch_size=128,gamma=0.995,tau=0.001,
                                         actor_lr=0.0001, critic_lr=0.001, use_layer_norm=True)
 print('DDPG agent configured')
+agent.load_memory()
+agent.load_model(agent.current_path + '/model/model.ckpt')
 max_episode = 10000
 tot_rewards = []
 print('env reset')
