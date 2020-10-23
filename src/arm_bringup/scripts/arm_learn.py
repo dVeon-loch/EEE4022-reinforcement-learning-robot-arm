@@ -1,4 +1,4 @@
-from __future__ import print_function
+
 from arm_env import ArmEnvironment
 from ddpg import OUNoise, DDPG
 import numpy as np
@@ -26,7 +26,7 @@ save_cutoff = 1
 cutoff_count = 0
 save_count = 0
 curr_highest_eps_reward = -1000.0
-for i in xrange(max_episode):
+for i in range(max_episode):
     if i % 100 == 0 and noise_sigma>0.03:
         agent.noise = OUNoise(agent.nb_actions,sigma=noise_sigma)
         noise_sigma /= 2.0

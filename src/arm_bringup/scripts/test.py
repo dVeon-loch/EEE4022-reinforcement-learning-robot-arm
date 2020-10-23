@@ -39,8 +39,8 @@ testpos = np.array([0,0.9,0.5,1.5])
 rewards = np.array([])
 while True:
     current_distance = envboi.get_goal_distance()
-    print("Current distance is: "+str(current_distance))
-    action = (raw_input("Enter an action from -1 to 1: \n"))
+    print(("Current distance is: "+str(current_distance)))
+    action = (input("Enter an action from -1 to 1: \n"))
     action = action.split(',')
     action = [float(i) for i in action]
     action = np.array(action)
@@ -50,5 +50,5 @@ while True:
     rewards = np.append(rewards, [reward])
     if(done):
         total_rewards = str(np.sum(rewards))
-        print("Well done! you reached the goal \n Total reward: "+total_rewards)
+        print(("Well done! you reached the goal \n Total reward: "+total_rewards))
         break

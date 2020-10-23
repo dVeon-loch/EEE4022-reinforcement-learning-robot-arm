@@ -200,7 +200,7 @@ class ArmEnvironment:
         try:
             self.pause_proxy()
             return True
-        except rospy.ServiceException, e:
+        except rospy.ServiceException as e:
             print('/gazebo/pause_physics service call failed')
             return False
 
@@ -208,7 +208,7 @@ class ArmEnvironment:
         rospy.wait_for_service('/gazebo/unpause_physics')
         try:
             self.unpause_proxy()
-        except rospy.ServiceException, e:
+        except rospy.ServiceException as e:
             print('/gazebo/unpause_physics service call failed')
 
     def get_goal_distance(self):

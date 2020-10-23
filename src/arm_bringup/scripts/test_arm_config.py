@@ -26,7 +26,7 @@ controller_switch_on.strictness = 2
 rospy.wait_for_service('/controller_manager/switch_controller')
 try:
    controller_switch_proxy(controller_switch_off)
-except rospy.ServiceException, e:
+except rospy.ServiceException as e:
     print('/controller_manager/switch_controller call failed')
 
 
@@ -34,13 +34,13 @@ rospy.wait_for_service('/gazebo/set_model_configuration')
 try:
     model_config_proxy(model_config_req)
     print("REEEEEEEEEEEEE")
-except rospy.ServiceException, e:
+except rospy.ServiceException as e:
     print('/gazebo/set_model_configuration call failed')
 
 rospy.wait_for_service('/controller_manager/switch_controller')
 try:
     controller_switch_proxy(controller_switch_on)
-except rospy.ServiceException, e:
+except rospy.ServiceException as e:
     print('/controller_manager/switch_controller call failed')
 
 
